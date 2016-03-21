@@ -5,8 +5,14 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.util.Map;
 
+import com.capgemini.camel.exception.rest.*;
+import com.capgemini.camel.rest.client.circuitbreaker.CommandRestResourceCall;
+import com.capgemini.camel.rest.client.constants.RestRequestConfigurationDefaults;
+import com.capgemini.camel.rest.client.model.RestClientErrorResponse;
 import com.capgemini.camel.rest.client.model.RestClientResponse;
 import com.capgemini.camel.rest.client.util.QueryString;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.config.DynamicPropertyFactory;
 import com.netflix.hystrix.exception.HystrixBadRequestException;
 import com.netflix.hystrix.exception.HystrixRuntimeException;
@@ -21,10 +27,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.capgemini.camel.rest.client.circuitbreaker.CommandRestResourceCall;
-import com.capgemini.camel.rest.client.constants.RestRequestConfigurationDefaults;
-import com.capgemini.camel.exception.rest.*;
 
 import static com.capgemini.camel.exception.rest.ErrorScenario.*;
 
@@ -389,6 +391,11 @@ public class RestClient {
         try {
             restClientResponse = restResourceCall.execute();
 
+            if (restClientResponse == null) {
+                LOGGER.debug("No Content response from the {} resource with null payload.", commandName);
+                return null;
+            }
+
             processResponseFailures(restClientResponse.getHttpResponseCode(), restClientResponse.getJsonResponse(), commandName);
 
         } catch (HystrixRuntimeException hre) {
@@ -427,7 +434,7 @@ public class RestClient {
             }
         }
 
-        LOGGER.debug("JSON recieved from {} resource is - {}", commandName, restClientResponse);
+        LOGGER.debug("JSON received from {} resource is - {}", commandName, restClientResponse.getJsonResponse());
         return restClientResponse.getJsonResponse();
     }
 
@@ -520,19 +527,23 @@ public class RestClient {
                                             String commandName) throws ResourceStateConflictException,RestClientSideException,
                                                                        RestServerSideException,
                                                                        InstantiationException {
-
-        if (httpStatusCode == 400) {
-            LOGGER.error(CB_BAD_REQUEST.getLogMessage(commandName, httpStatusCode, json));
-            throw new RestClientSideException(json);
-        }else if(httpStatusCode == 409){
-            LOGGER.error(CONFLICT_HTTP_RESPONSE.getLogMessage(commandName, httpStatusCode, json));
-            throw new ResourceStateConflictException(CONFLICT_HTTP_RESPONSE,json);
-        }else if (httpStatusCode >= 401 && httpStatusCode < 500) {
-            LOGGER.error(RESPONSE_FAILURE.getLogMessage(commandName, httpStatusCode, json));
-            throw new RestClientSideException(RESPONSE_FAILURE, json);
-        } else if (httpStatusCode >= 500 && httpStatusCode < 600) {
-            LOGGER.error(RESPONSE_FAILURE.getLogMessage(commandName, httpStatusCode, json));
-            throw new RestServerSideException(RESPONSE_FAILURE, json);
+        try {
+            new ObjectMapper().readValue(json, RestClientErrorResponse.class);
+            return;
+        } catch (IOException e) {
+            if (httpStatusCode == 400) {
+                LOGGER.error(CB_BAD_REQUEST.getLogMessage(commandName, httpStatusCode, json));
+                throw new RestClientSideException(json);
+            } else if (httpStatusCode == 409) {
+                LOGGER.error(CONFLICT_HTTP_RESPONSE.getLogMessage(commandName, httpStatusCode, json));
+                throw new ResourceStateConflictException(CONFLICT_HTTP_RESPONSE, json);
+            } else if (httpStatusCode >= 401 && httpStatusCode < 500) {
+                LOGGER.error(RESPONSE_FAILURE.getLogMessage(commandName, httpStatusCode, json));
+                throw new RestClientSideException(RESPONSE_FAILURE, json);
+            } else if (httpStatusCode >= 500 && httpStatusCode < 600) {
+                LOGGER.error(RESPONSE_FAILURE.getLogMessage(commandName, httpStatusCode, json));
+                throw new RestServerSideException(RESPONSE_FAILURE, json);
+            }
         }
     }
 
