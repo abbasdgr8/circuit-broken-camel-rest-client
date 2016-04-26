@@ -8,7 +8,7 @@ import java.util.Map;
 import com.capgemini.camel.exception.rest.*;
 import com.capgemini.camel.rest.client.circuitbreaker.CommandRestResourceCall;
 import com.capgemini.camel.rest.client.constants.RestRequestConfigurationDefaults;
-import com.capgemini.camel.rest.client.model.RestClientErrorResponse;
+import com.capgemini.camel.response.model.RestClientErrorResponse;
 import com.capgemini.camel.rest.client.model.RestClientResponse;
 import com.capgemini.camel.rest.client.util.QueryString;
 
