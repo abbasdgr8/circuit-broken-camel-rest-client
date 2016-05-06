@@ -8,10 +8,8 @@ import java.util.Map;
 import com.capgemini.camel.exception.rest.*;
 import com.capgemini.camel.rest.client.circuitbreaker.CommandRestResourceCall;
 import com.capgemini.camel.rest.client.constants.RestRequestConfigurationDefaults;
-import com.capgemini.camel.response.model.RestClientErrorResponse;
 import com.capgemini.camel.rest.client.model.RestClientResponse;
 import com.capgemini.camel.rest.client.util.QueryString;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.config.DynamicPropertyFactory;
 import com.netflix.hystrix.exception.HystrixBadRequestException;
@@ -528,11 +526,11 @@ public class RestClient {
                                                                        RestServerSideException,
                                                                        InstantiationException {
         try {
-            new ObjectMapper().readValue(json, RestClientErrorResponse.class);
+            new ObjectMapper().readTree(json);
             return;
         } catch (IOException e) {
             if (httpStatusCode == 400) {
-                LOGGER.error(CB_BAD_REQUEST.getLogMessage(commandName, httpStatusCode, json));
+                LOGGER.error(CB_BAD_REQUEST.getLogMessage(commandName, json, httpStatusCode));
                 throw new RestClientSideException(json);
             } else if (httpStatusCode == 409) {
                 LOGGER.error(CONFLICT_HTTP_RESPONSE.getLogMessage(commandName, httpStatusCode, json));
